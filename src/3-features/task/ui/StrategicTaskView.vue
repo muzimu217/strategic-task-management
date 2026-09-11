@@ -8,6 +8,7 @@ import {
   ArrowDown,
   Check,
   Loading,
+  Timer,
   Upload
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -35,6 +36,11 @@ import {
 } from '@/features/task/model/useStrategicTaskView'
 import { strategicApi } from '@/features/task/api/strategicApi'
 import { useStrategicStore } from '@/features/task/model/strategic'
+import {
+  MANUAL_ALERT_LOCKED_HINT,
+  MANUAL_ALERT_READONLY_HINT,
+  canEditManualAlertLevel
+} from '@/features/task/lib/warning-level'
 import type { ImportCommitResponse } from '@/features/import/api/businessImport'
 
 const props = defineProps<StrategicTaskViewProps>()
@@ -1127,24 +1133,45 @@ const handleStrategicImportCommitted = async (result?: ImportCommitResponse) => 
               <el-table-column label="预警等级判定" width="150" align="center">
                 <template #default="{ row }">
                   <div class="manual-alert-cell">
-                    <el-select
+                    <el-tooltip
                       v-if="isStrategicDept"
-                      :model-value="row.manualAlertSeverity ?? ''"
-                      size="small"
-                      class="manual-alert-select"
-                      :disabled="savingManualAlertIndicatorId === row.id"
-                      :loading="savingManualAlertIndicatorId === row.id"
-                      @change="
-                        value => handleManualAlertChange(row, value as ManualAlertSelectValue)
+                      :disabled="
+                        canEditManualAlertLevel(currentPlanStatus, { readOnly: isReadOnly })
                       "
+                      :content="isReadOnly ? MANUAL_ALERT_READONLY_HINT : MANUAL_ALERT_LOCKED_HINT"
+                      placement="top"
                     >
-                      <el-option
-                        v-for="option in manualAlertOptions"
-                        :key="option.value || 'NONE'"
-                        :label="option.label"
-                        :value="option.value"
-                      />
-                    </el-select>
+                      <div
+                        class="manual-alert-select-wrapper"
+                        :class="{
+                          'manual-alert-select-wrapper--locked': !canEditManualAlertLevel(
+                            currentPlanStatus,
+                            { readOnly: isReadOnly }
+                          )
+                        }"
+                      >
+                        <el-select
+                          :model-value="row.manualAlertSeverity ?? ''"
+                          size="small"
+                          class="manual-alert-select"
+                          :disabled="
+                            !canEditManualAlertLevel(currentPlanStatus, { readOnly: isReadOnly }) ||
+                            savingManualAlertIndicatorId === row.id
+                          "
+                          :loading="savingManualAlertIndicatorId === row.id"
+                          @change="
+                            value => handleManualAlertChange(row, value as ManualAlertSelectValue)
+                          "
+                        >
+                          <el-option
+                            v-for="option in manualAlertOptions"
+                            :key="option.value || 'NONE'"
+                            :label="option.label"
+                            :value="option.value"
+                          />
+                        </el-select>
+                      </div>
+                    </el-tooltip>
                     <el-tag
                       v-else
                       :type="getManualAlertTagType(row.manualAlertSeverity)"
@@ -1155,12 +1182,22 @@ const handleStrategicImportCommitted = async (result?: ImportCommitResponse) => 
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="180" align="center">
+              <el-table-column label="操作" width="240" align="center">
                 <template #default="{ row }">
                   <div class="action-buttons-inline">
                     <!-- 查看按钮 - 始终显示 -->
                     <el-button link type="primary" size="small" @click="handleViewDetail(row)"
                       >查看</el-button
+                    >
+
+                    <!-- 里程碑按钮 - 仅草稿状态可编辑 -->
+                    <el-button
+                      v-if="canEditIndicators"
+                      link
+                      type="primary"
+                      size="small"
+                      @click="handleEditMilestones(row)"
+                      >里程碑</el-button
                     >
 
                     <!-- 删除按钮 - 仅草稿状态可删除 -->
@@ -1260,7 +1297,7 @@ const handleStrategicImportCommitted = async (result?: ImportCommitResponse) => 
                     详情
                   </el-button>
                   <el-button
-                    v-if="currentIndicator.canWithdraw && !isReadOnly"
+                    v-if="canDeleteIndicator(currentIndicator)"
                     type="danger"
                     size="small"
                     @click="handleDeleteIndicator(currentIndicator)"
@@ -2102,3 +2139,10 @@ const handleStrategicImportCommitted = async (result?: ImportCommitResponse) => 
 </template>
 
 <style scoped src="./StrategicTaskView.css"></style>
+
+<style scoped>
+/* 计划未正式下发时锁定预警等级判定 */
+.manual-alert-select-wrapper--locked {
+  cursor: not-allowed;
+}
+</style>
