@@ -5311,6 +5311,11 @@ export function useStrategicTaskView(props: StrategicTaskViewProps) {
 
   // 删除单个指标
   const handleDeleteIndicator = (row: StrategicIndicator) => {
+    if (!canDeleteIndicator(row)) {
+      ElMessage.warning('只有未下发的草稿计划才能删除指标')
+      return
+    }
+
     const indicatorId = row?.id
     if (indicatorId === null || indicatorId === undefined || indicatorId === '') {
       ElMessage.warning('当前行不是可删除的指标数据')
